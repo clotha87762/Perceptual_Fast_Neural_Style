@@ -21,6 +21,7 @@ parser.add_argument('--style_dir' , dest = 'style_dir' ,  help = 'path of style 
 parser.add_argument('--save_dir' , dest = 'save_dir' , default = './save' , help = 'path of saved images')
 parser.add_argument('--sample_dir' , dest = 'sample_dir' , default = './sample' , help = 'path of saved images')
 parser.add_argument('--target_dir' , dest = 'target_dir' , default = './target' , help = 'path of target images')
+parser.add_argument('--test_dir', dest = 'test_dir' , default = './test' , help = 'path of test images')
 
 parser.add_argument('--loss_model', dest = 'loss_model' , default = 'vgg_16' , help = 'name of the network, please refer\
                     to nets/nets_factory.py' )
@@ -68,8 +69,14 @@ def main(_):
         os.makedirs(args.log_dir)
     if not os.path.exists(args.ckpt_dir):
         os.makedirs(args.ckpt_dir)
+    if not os.path.exists(args.test_dir):
+        os.makedirs(args.test_dir)
     if not os.path.exists('./pretrained'):
     	os.makedirs('./pretrained')
+        
+    style_name = (args.style_dir.split('/')[-1]).split('.')[0]
+    if not os.path.exists( os.path.join(args.ckpt_dir, style_name ) ):
+        os.makedirs(os.path.join(args.ckpt_dir, style_name ))
     
     
     tf.logging.set_verbosity(tf.logging.INFO)
@@ -161,7 +168,7 @@ def train():
             saver = tf.train.Saver(to_restore)
             style_name = (args.style_dir.split('/')[-1]).split('.')[0]
             
-            ckpt = tf.train.latest_checkpoint(args.ckpt_dir)
+            ckpt = tf.train.latest_checkpoint(os.path.join(args.ckpt_dir,style_name))
             if ckpt:
                 tf.logging.info('Restoring model from {}'.format(ckpt))
                 saver.restore(sess, ckpt)
@@ -187,11 +194,11 @@ def train():
                         tf.logging.info('step: %d,  total Loss %f, secs/step: %f' % (gs, loss_info, elapsed))
                     
                     if gs % args.save_freq == 0:
-                        saver.save(sess, os.path.join(args.ckpt_dir,style_name+'.ckpt'))
+                        saver.save(sess, os.path.join(args.ckpt_dir,style_name,style_name+'.ckpt'))
                         
             except tf.errors.OutOfRangeError:
                 print('run out of images!  save final model: ' + os.path.join(args.ckpt_dir,style_name+'.ckpt-done') )
-                saver.save(sess , os.path.join(args.ckpt_dir, style_name+'.ckpt-done') )
+                saver.save(sess , os.path.join(args.ckpt_dir, style_name ,style_name+'.ckpt-done') )
                 tf.logging.info('Done -- file ran out of range')
             finally:
                 coord.request_stop()
@@ -274,7 +281,59 @@ def get_style_feature():
 
 
 def evaluate():
-    raise NotImplementedError('evaluation not yet implemented') 
+    
+    with tf.Graph().as_default():
+        with tf.Session() as sess:
+        
+            #loss_input_style = tf.placeholder(dtype = tf.float32 , shape = [args.batch , args.size , args.size , args.in_dim ])
+            #loss_input_target =tf.placeholder(dtype = tf.float32 , shape = [args.batch , args.size , args.size , args.in_dim ])
+            
+            # For online optimization problem, use testing preprocess for both train and test
+            preprocess_func , unprocess_func = preprocessing.preprocessing_factory.get_preprocessing( args.loss_model , is_training = False )
+            
+            
+            images = reader.image( 1 , args.size , args.size, args.test_dir , preprocess_func, \
+                                  1 , shuffle = False)
+            
+                
+            model = transform(sess,args)
+            transformed_images = model.generator(images, reuse = False)
+            unprocess_transform = [ unprocess_func(img) for img in tf.unstack( transformed_images , axis=0, num=args.batch) ]
+            
+            all_vars =  tf.global_variables()
+            to_restore = [var for var in all_vars if not args.loss_model in var.name ]
+            
+            sess.run([tf.global_variables_initializer() , tf.local_variables_initializer()])
+
+            saver = tf.train.Saver(to_restore)
+            style_name = (args.style_dir.split('/')[-1]).split('.')[0]
+            
+            ckpt = tf.train.latest_checkpoint(os.path.join(args.ckpt_dir,style_name))
+            if ckpt:
+                tf.logging.info('Restoring model from {}'.format(ckpt))
+                saver.restore(sess, ckpt)
+            
+            coord = tf.train.Coordinator()
+            threads = tf.train.start_queue_runners(coord = coord)
+            start_time = time()
+            i = 0
+            try:
+                while True:
+                
+                    images = sess.run( unprocess_transform )
+                    for img in images:
+                        path = os.path.join(args.test_dir, str(i)+'.jpg' )
+                        scipy.misc.imsave( path, img )
+                        i = i+1
+                    
+            except tf.errors.OutOfRangeError:
+                print('eval finished')
+            finally:
+                coord.request_stop()
+            
+            coord.join(threads)
+            
+            
     
     
 
