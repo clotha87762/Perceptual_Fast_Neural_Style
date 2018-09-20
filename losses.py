@@ -6,10 +6,10 @@ def gram_matrix( x ):
     shape = tf.shape(x)
     filters = tf.reshape(x , [shape[0] , -1 , shape[3]])
     gram = tf.matmul( filters , filters , transpose_a = True )
-    gram = gram / tf.float32( shape[1] * shape[2] * shape[3])
+    gram = gram / tf.to_float( shape[1] * shape[2] * shape[3])
     return gram
 
-def content_loss(layer_dict , content_layer , image):
+def content_loss(layer_dict , content_layer ):
     total = 0
     for layer in content_layer:
         out = layer_dict[layer]
@@ -31,8 +31,12 @@ def style_loss(layer_dict , style_layer , style_features):
         image_count = tf.shape(generated)[0]
         gen_gram = gram_matrix( generated )
         #ori_gram = gram_matrix( origin )
+        #print(gen_gram.get_shape())
         
-        style_gram = tf.tile(  style_feature , [image_count, 1,1,1] )
+        s = tf.expand_dims(style_feature,0)
+        style_gram = tf.tile(s, [image_count,1,1])
+        #print(style_gram.get_shape())
+        
         t = gen_gram - style_gram
         loss = tf.reduce_mean( t**2 )
         total += loss

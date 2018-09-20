@@ -30,7 +30,7 @@ def lrelu(x):
     #nan_to_zero = tf.where(tf.equal(relu, relu), relu, tf.zeros_like(relu))
 #    return relu#nan_to_zero
 
-
+@tf.contrib.framework.add_arg_scope
 def instance_norm( _input, name="instance_norm" , is_train = True,epsilon=1e-5, momentum = 0.9):
     with tf.variable_scope(name):
         depth = _input.get_shape()[-1]
