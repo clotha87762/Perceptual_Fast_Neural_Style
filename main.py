@@ -46,9 +46,9 @@ parser.add_argument('--deconv' , dest = 'deconv' ,  type = bool , default = Fals
 parser.add_argument('--pad_size' , dest = 'pad_size' , type=int, default = 10 , help = 'pad size before & after feeding into network')
 
 parser.add_argument('--save_freq', dest = 'save_freq' , type=int , default = 10 , help = 'frequency to save model')
-parser.add_argument('--c_weight' , dest = 'c_weight' , type = float , default = 2.0 , help = 'weight of content loss' )
-parser.add_argument('--s_weight' , dest = 's_weight' , type = float , default = 180.0 , help = 'weight of style loss' )
-parser.add_argument('--tv_weight' , dest = 'tv_weight' , type = float , default = 0.1 , help = 'weight of tv loss' )
+parser.add_argument('--c_weight' , dest = 'c_weight' , type = float , default = 1.0 , help = 'weight of content loss' )
+parser.add_argument('--s_weight' , dest = 's_weight' , type = float , default = 100.0 , help = 'weight of style loss' )
+parser.add_argument('--tv_weight' , dest = 'tv_weight' , type = float , default = 0.001 , help = 'weight of tv loss' )
 
 
 args = parser.parse_args()
@@ -102,6 +102,7 @@ def train():
             preprocess_func , unprocess_func = preprocessing.preprocessing_factory.get_preprocessing( args.loss_model , is_training = False )
             
             
+            
             images = reader.image(args.batch, args.size , args.size, args.target_dir , preprocess_func, \
                                  args.epoch , shuffle = True)
             
@@ -110,13 +111,19 @@ def train():
         
             model = transform(sess,args)
             transformed_images = model.generator(images, reuse = False)
+            
             #print('qqq')
             #print( tf.shape(transformed_images).eval())
            
-            unprocess_transform = [ unprocess_func(img) for img in tf.unstack( transformed_images , axis=0, num=args.batch) ]
+            unprocess_transform = [ (img) for img in tf.unstack( transformed_images , axis=0, num=args.batch) ]
+            
+            processed_generated = [ preprocess_func(img ,args.size , args.size) for img in unprocess_transform]
+            processed_generated = tf.stack(processed_generated)
             
             loss_model = nets.nets_factory.get_network_fn(args.loss_model ,num_classes = 1,is_training = False)
-            pair = tf.concat([transformed_images , images] , axis = 0 )
+            
+            
+            pair = tf.concat([processed_generated , images] , axis = 0 )
             _ , end_dicts = loss_model( pair , spatial_squeeze = False)
              
             init_loss_model = load_pretrained_weight(args.loss_model)
@@ -124,13 +131,19 @@ def train():
            
             
             c_loss = losses.content_loss(end_dicts , loss_config.content_loss_dict[args.loss_model])
+            
             s_loss  , s_loss_sum = losses.style_loss(end_dicts, loss_config.style_loss_dict[args.loss_model] ,style_grams)
+            
             tv_loss = losses.total_variation_loss(transformed_images)
             
             loss = args.c_weight * c_loss +  args.s_weight * s_loss +  args.tv_weight * tv_loss
             
            
+            print('shapes')
+            print(pair.get_shape())
             
+            tf.summary.scalar('average', tf.reduce_mean(images))
+            tf.summary.scalar('gram average', tf.reduce_mean(tf.stack(style_feature)))
             
             tf.summary.scalar('losses/content_loss', c_loss)
             tf.summary.scalar('losses/style_loss', s_loss)
@@ -165,6 +178,7 @@ def train():
             optim = tf.train.AdamOptimizer( learning_rate = args.lr , beta1 = args.beta).minimize(\
                                            loss = loss , var_list = to_train , global_step = step)
             
+            
             saver = tf.train.Saver(to_restore)
             style_name = (args.style_dir.split('/')[-1]).split('.')[0]
             
@@ -173,7 +187,7 @@ def train():
                 tf.logging.info('Restoring model from {}'.format(ckpt))
                 saver.restore(sess, ckpt)
             
-            sess.run([tf.global_variables_initializer() , tf.local_variables_initializer()])
+            sess.run( [ tf.global_variables_initializer() , tf.local_variables_initializer()])
             #sess.run(init_loss_model)
             init_loss_model(sess)
             
@@ -184,14 +198,14 @@ def train():
             try:
                 while True:
                 
-                    _ , gs, sum_info, loss_info = sess.run( [optim , step , summary , loss] )
+                    _ , gs, sum_info,c_info, s_info, tv_info, loss_info = sess.run( [optim , step , summary ,c_loss , s_loss , tv_loss , loss] )
                     writer.add_summary(sum_info , gs)
                     elapsed = time() - start_time
                     
                     print(gs)
                     
                     if gs % 10 == 0:
-                        tf.logging.info('step: %d,  total Loss %f, secs/step: %f' % (gs, loss_info, elapsed))
+                        tf.logging.info('step: %d, c_loss %f  s_loss %f  tv_loss %f total Loss %f, secs/step: %f' % (gs, c_info, s_info, tv_info, loss_info, elapsed))
                     
                     if gs % args.save_freq == 0:
                         saver.save(sess, os.path.join(args.ckpt_dir,style_name,style_name+'.ckpt'))
@@ -242,9 +256,10 @@ def load_pretrained_weight(name):
 def get_style_feature():
     
     with tf.Graph().as_default():
-        with tf.Session() as sess:
+       
             
             preprocess_func , unprocess_func = preprocessing.preprocessing_factory.get_preprocessing( args.loss_model , is_training = False )
+            
             style_img = reader.get_image(args.style_dir, args.size, args.size, preprocess_func)
             style_img = tf.expand_dims( style_img , 0 )
             
@@ -260,7 +275,7 @@ def get_style_feature():
             
             #sess.run([tf.global_variables_initializer() , tf.local_variables_initializer()])
             #sess.run([init_loss_model])
-            init_loss_model(sess)
+            
             
             for layer in loss_config.style_loss_dict[args.loss_model]:
                 
@@ -271,12 +286,18 @@ def get_style_feature():
                 feature_s = tf.squeeze(feature,[0])
                 gram_s = tf.squeeze(gram, [0] )
                 
-                f , g = sess.run([ feature_s , gram_s ])
-                features.append(f)
-                feature_grams.append(g)
-            
-            #print('qwq')
-            return features , feature_grams
+                #f , g = sess.run([ feature_s , gram_s ])
+                
+                features.append( feature_s)
+                feature_grams.append( gram_s )
+                
+                
+            with tf.Session() as sess:
+                
+                init_loss_model(sess)
+                ff , gg = sess.run( [features , feature_grams ] )
+                #print('qwq')
+                return ff , gg
         
 
 
@@ -322,7 +343,7 @@ def evaluate():
                 
                     images = sess.run( unprocess_transform )
                     for img in images:
-                        path = os.path.join(args.test_dir, str(i)+'.jpg' )
+                        path = os.path.join(args.save_dir, str(i)+'.jpg' )
                         scipy.misc.imsave( path, img )
                         i = i+1
                     

@@ -19,7 +19,7 @@ def image(batch_size, height, width, path, preprocess_fn, epochs=2, shuffle=True
     if not shuffle:
         filenames = sorted(filenames)
     
-    print(filenames)
+    #print(filenames)
 
     png = filenames[0].lower().endswith('png')  # If first file is a png, assume they all are
 

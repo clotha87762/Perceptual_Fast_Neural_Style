@@ -108,6 +108,9 @@ class transform(object):
                 x = slim.conv2d( relu(x) , self.out_dim , [1,1] , scope = 'g_predict')
                 
                 out = tf.nn.tanh(x)
+                
+                out = (out + 1) * 127.5
+                
                 height = tf.shape(out)[1]
                 width = tf.shape(out)[2]
                 out = tf.slice(out, [0, self.ps, self.ps, 0], tf.stack([-1, height - self.ps*2, width - self.ps*2, -1]))
@@ -161,6 +164,9 @@ class transform(object):
                 d5 = slim.conv2d_transpose(relu(d4) , self.gfdim , [2,2] , scope= 'g_d5_conv' )
                 
                 out = tf.nn.tanh(d5)
+                
+                out = (out + 1) * 127.5
+                
                 height = tf.shape(out)[1]
                 width = tf.shape(out)[2]
                 out = tf.slice(out, [0, self.ps, self.ps, 0], tf.stack([-1, height - self.ps*2, width - self.ps*2, -1]))
@@ -221,6 +227,8 @@ class transform(object):
                 d2 =  instance_norm(d2,is_train = self.is_training , name = 'g_d2_bn')
                 
                 out = tf.nn.tanh(d2)
+                
+                out = (out + 1) * 127.5
                 
                 height = tf.shape(out)[1]
                 width = tf.shape(out)[2]
