@@ -39,8 +39,8 @@ parser.add_argument('--out_dim' , dest = 'out_dim' , type = int , default = 3 )
 parser.add_argument('--ur' , dest = 'ur' ,  default = 'r' , help= 'generator is unet or resnet, u1/u2/r ' )
 parser.add_argument('--gfdim' , dest = 'gfdim' , type = int  ,default = None , help= 'first layer dim of generator' )
 
-parser.add_argument('--lr' , dest = 'lr' ,  type = int , default = 0.0002 , help= 'init learning rate of adam' )
-parser.add_argument('--beta' , dest = 'beta' ,  type = int , default = 0.5  , help= 'beta1 of adam' )
+parser.add_argument('--lr' , dest = 'lr' ,  type = float , default = 0.001 , help= 'init learning rate of adam' )
+parser.add_argument('--beta' , dest = 'beta' ,  type = float , default = 0.9  , help= 'beta1 of adam' )
 parser.add_argument('--deconv' , dest = 'deconv' ,  type = bool , default = False  , help= 'Use deconv or resize-conv' )
 
 parser.add_argument('--pad_size' , dest = 'pad_size' , type=int, default = 10 , help = 'pad size before & after feeding into network')
@@ -142,8 +142,8 @@ def train():
             print('shapes')
             print(pair.get_shape())
             
-            tf.summary.scalar('average', tf.reduce_mean(images))
-            tf.summary.scalar('gram average', tf.reduce_mean(tf.stack(style_feature)))
+            #tf.summary.scalar('average', tf.reduce_mean(images))
+            #tf.summary.scalar('gram average', tf.reduce_mean(tf.stack(style_feature)))
             
             tf.summary.scalar('losses/content_loss', c_loss)
             tf.summary.scalar('losses/style_loss', s_loss)
@@ -175,7 +175,7 @@ def train():
             to_restore = [var for var in all_vars if not args.loss_model in var.name ]
             
                 
-            optim = tf.train.AdamOptimizer( learning_rate = args.lr , beta1 = args.beta).minimize(\
+            optim = tf.train.AdamOptimizer( 1e-3 ).minimize(\
                                            loss = loss , var_list = to_train , global_step = step)
             
             

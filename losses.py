@@ -9,7 +9,7 @@ def gram_matrix( x ):
     gram = gram / tf.to_float( shape[1] * shape[2] * shape[3])
     return gram
 
-
+'''
 def content_loss(layer_dict , content_layer ):
     
     total = 0
@@ -18,14 +18,34 @@ def content_loss(layer_dict , content_layer ):
         out = layer_dict[layer]
         generated , origin = tf.split(out, 2 , axis = 0)
         t = generated - origin
-        total += tf.reduce_mean( t**2 )
+        size = tf.size(generated_images)
+        total += tf.nn.l2_loss(generated - origin) * 2 / tf.to_float(size)
         
     
     return total
+'''
+
+def content_loss(endpoints_dict, content_layers):
+    content_loss = 0
+    for layer in content_layers:
+        generated_images, content_images = tf.split(endpoints_dict[layer], 2, 0)
+        size = tf.size(generated_images)
+        content_loss += tf.nn.l2_loss(generated_images - content_images) * 2 / tf.to_float(size)  # remain the same as in the paper
+    return content_loss
 
 
+def style_loss(endpoints_dict, style_layers, style_features_t):
+    style_loss = 0
+    style_loss_summary = {}
+    for style_gram, layer in zip(style_features_t, style_layers):
+        generated_images, _ = tf.split(endpoints_dict[layer], 2, 0)
+        size = tf.size(generated_images)
+        layer_style_loss = tf.nn.l2_loss(gram_matrix(generated_images) - style_gram) * 2 / tf.to_float(size)
+        style_loss_summary[layer] = layer_style_loss
+        style_loss += layer_style_loss
+    return style_loss, style_loss_summary
+    ''' 
 def style_loss(layer_dict , style_layer , style_features):
-    
     total = 0
     loss_sum = {}
     
@@ -45,17 +65,18 @@ def style_loss(layer_dict , style_layer , style_features):
         #print(gen_gram.get_shape())
         
         s = tf.expand_dims(style_feature,0)
-        style_gram = tf.tile(s, [image_count,1,1])
+        #style_gram = tf.tile(s, [image_count,1,1])
         #print(style_gram.get_shape())
         
-        t = gen_gram - style_gram
-        #t = gen_gram - s
-        loss = tf.reduce_mean( t**2 )
+        #t = gen_gram - style_gram
+        t = gen_gram - s
+        size = tf.size(generated_images)
+        loss = tf.nn.l2_loss(gram_matrix(generated_images) - style_gram) * 2 / tf.to_float(size)
         total += loss
         loss_sum[layer] = loss
         
     return total , loss_sum
-
+'''
 
 def total_variation_loss ( image ):
     

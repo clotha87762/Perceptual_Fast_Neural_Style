@@ -12,11 +12,17 @@ def log2(_input):
 def dropout(_input , prob = 0.5 ):
     return tf.nn.dropout(_input,prob)
 
-def relu(x):
-    return tf.nn.relu(x)
+def relu(_input):
+    relu = tf.nn.relu(_input)
+    # convert nan to zero (nan != nan)
+    nan_to_zero = tf.where(tf.equal(relu, relu), relu, tf.zeros_like(relu))
+    return nan_to_zero
+
 
 def lrelu(x):
-    return tf.nn.leaky_relu(x)
+    lrelu = tf.nn.leaky_relu(x)
+    nan_to_zero = tf.where(tf.equal(lrelu, lrelu), lrelu, tf.zeros_like(lrelu))
+    return nan_to_zero
 
 #def lrelu(_input, leak = 0.2):
 #    lrelu =  tf.maximum(_input, _input*leak)
@@ -40,7 +46,7 @@ def instance_norm( _input, name="instance_norm" , is_train = True,epsilon=1e-5, 
         epsilon = epsilon
         inv = tf.rsqrt(variance + epsilon)
         normalized = (_input-mean)*inv
-        return scale*normalized + offset
+        return normalized * scale + offset
 
     
 def batch_norm(_input, is_train = True,epsilon=1e-5, momentum = 0.9, name="batch_norm"):

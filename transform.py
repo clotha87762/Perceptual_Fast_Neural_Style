@@ -134,34 +134,34 @@ class transform(object):
                 
                 
                 e0 = slim.conv2d(_input , self.gfdim , [2,2] , scope = 'g_e0_conv')
-                e0 = instance_norm(e0 , is_training = self.is_training , scope = 'g_e0_bn')
+                e0 = instance_norm(e0 , is_training = self.is_training , name = 'g_e0_bn')
                 e1 = slim.conv2d(lrelu(e0) , self.gfdim , [2,2] , scope = 'g_e1_conv')
-                e1 = instance_norm(e1 , is_training = self.is_training , scope = 'g_e1_bn')
+                e1 = instance_norm(e1 , is_training = self.is_training ,  name = 'g_e1_bn')
                 e2 = slim.conv2d(lrelu(e1) , self.gfdim , [2,2] , scope = 'g_e2_conv')
-                e2 = instance_norm(e2 , is_training = self.is_training , scope = 'g_e2_bn')
+                e2 = instance_norm(e2 , is_training = self.is_training ,  name = 'g_e2_bn')
                 e3 = slim.conv2d(lrelu(e2) , self.gfdim , [2,2] , scope = 'g_e3_conv')
-                e3 = instance_norm(e3 , is_training = self.is_training , scope = 'g_e3_bn')
+                e3 = instance_norm(e3 , is_training = self.is_training , name = 'g_e3_bn')
                 e4 = slim.conv2d(lrelu(e3) , self.gfdim , [2,2] , scope = 'g_e4_conv')
-                e4 = instance_norm(e4 , is_training = self.is_training , scope = 'g_e4_bn')
+                e4 = instance_norm(e4 , is_training = self.is_training ,  name = 'g_e4_bn')
                 e5 = slim.conv2d(lrelu(e4) , self.gfdim , [2,2] , scope = 'g_e5_conv')
-                e5 = instance_norm(e5 , is_training = self.is_training , scope = 'g_e5_bn')
+                e5 = instance_norm(e5 , is_training = self.is_training ,  name = 'g_e5_bn')
                 
                 d0 = slim.conv2d_transpose(relu(e5) , self.gfdim , [2,2] , scope= 'g_d0_conv' )
-                d0 = instance_norm(d0 , is_training = self.is_training , scope = 'g_d0_bn')
+                d0 = instance_norm(d0 , is_training = self.is_training ,  name = 'g_d0_bn')
                 d0 = tf.concat([d0,e4] , axis = -1)
                 d1 = slim.conv2d_transpose(relu(d0) , self.gfdim , [2,2] , scope= 'g_d1_conv' )
-                d1 = instance_norm(d1 , is_training = self.is_training , scope = 'g_d1_bn')
+                d1 = instance_norm(d1 , is_training = self.is_training , name = 'g_d1_bn')
                 d1 = tf.concat([d1,e3] , axis = -1)
                 d2 = slim.conv2d_transpose(relu(d1) , self.gfdim , [2,2] , scope= 'g_d2_conv' )
-                d2 = instance_norm(d2 , is_training = self.is_training , scope = 'g_d2_bn')
+                d2 = instance_norm(d2 , is_training = self.is_training ,  name = 'g_d2_bn')
                 d2 = tf.concat([d2,e2] , axis = -1)
                 d3 = slim.conv2d_transpose(relu(d2) , self.gfdim , [2,2] , scope= 'g_d3_conv' )
-                d3 = instance_norm(d3 , is_training = self.is_training , scope = 'g_d3_bn')
+                d3 = instance_norm(d3 , is_training = self.is_training ,  name = 'g_d3_bn')
                 d3 = tf.concat([d3,e1] , axis = -1)
                 d4 = slim.conv2d_transpose(relu(d3) , self.gfdim , [2,2] , scope= 'g_d4_conv' )
-                d4 = instance_norm(d4 , is_training = self.is_training , scope = 'g_d4_bn')
+                d4 = instance_norm(d4 , is_training = self.is_training ,  name = 'g_d4_bn')
                 d4 = tf.concat([d4,e0] , axis = -1)
-                d5 = slim.conv2d_transpose(relu(d4) , self.gfdim , [2,2] , scope= 'g_d5_conv' )
+                d5 = slim.conv2d_transpose(relu(d4) , self.gfdim , [2,2] ,  name= 'g_d5_conv' )
                 
                 out = tf.nn.tanh(d5)
                 
@@ -228,7 +228,7 @@ class transform(object):
                 
                 out = tf.nn.tanh(d2)
                 
-                out = (out + 1) * 127.5
+                out = (out + 1.0) * 127.5
                 
                 height = tf.shape(out)[1]
                 width = tf.shape(out)[2]
