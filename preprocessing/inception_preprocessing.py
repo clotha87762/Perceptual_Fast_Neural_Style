@@ -25,12 +25,10 @@ from tensorflow.python.ops import control_flow_ops
 
 def apply_with_random_selector(x, func, num_cases):
   """Computes func(x, sel), with sel sampled from [0...num_cases-1].
-
   Args:
     x: input Tensor.
     func: Python function to apply.
     num_cases: Python int32, number of cases to sample sel from.
-
   Returns:
     The result of func(x, sel), where func receives the value of the
     selector as a python integer, but sel is sampled dynamically.
@@ -44,12 +42,10 @@ def apply_with_random_selector(x, func, num_cases):
 
 def distort_color(image, color_ordering=0, fast_mode=True, scope=None):
   """Distort the color of a Tensor image.
-
   Each color distortion is non-commutative and thus ordering of the color ops
   matters. Ideally we would randomly permute the ordering of the color ops.
   Rather then adding that level of complication, we select a distinct ordering
   of color ops for each preprocessing thread.
-
   Args:
     image: 3-D Tensor containing single image in [0, 1].
     color_ordering: Python int, a type of distortion (valid values: 0-3).
@@ -104,9 +100,7 @@ def distorted_bounding_box_crop(image,
                                 max_attempts=100,
                                 scope=None):
   """Generates cropped_image using a one of the bboxes randomly distorted.
-
   See `tf.image.sample_distorted_bounding_box` for more documentation.
-
   Args:
     image: 3-D Tensor of image (it will be converted to floats in [0, 1]).
     bbox: 3-D float Tensor of bounding boxes arranged [1, num_boxes, coords]
@@ -155,16 +149,14 @@ def distorted_bounding_box_crop(image,
 
 def preprocess_for_train(image, height, width, bbox,
                          fast_mode=True,
-                         scope=None):
+                         scope=None,
+                         add_image_summaries=True):
   """Distort one image for training a network.
-
   Distorting images provides a useful technique for augmenting the data
   set during training in order to make the network invariant to aspects
   of the image that do not effect the label.
-
   Additionally it would create image_summaries to display the different
   transformations applied to the image.
-
   Args:
     image: 3-D Tensor of image. If dtype is tf.float32 then the range should be
       [0, 1], otherwise it would converted to tf.float32 assuming that the range
@@ -178,6 +170,7 @@ def preprocess_for_train(image, height, width, bbox,
     fast_mode: Optional boolean, if True avoids slower transformations (i.e.
       bi-cubic resizing, random_hue or random_contrast).
     scope: Optional scope for name_scope.
+    add_image_summaries: Enable image summaries.
   Returns:
     3-D float Tensor of distorted image used for training with range [-1, 1].
   """
@@ -192,7 +185,8 @@ def preprocess_for_train(image, height, width, bbox,
     # the coordinates are ordered [ymin, xmin, ymax, xmax].
     image_with_box = tf.image.draw_bounding_boxes(tf.expand_dims(image, 0),
                                                   bbox)
-    tf.image_summary('image_with_bounding_boxes', image_with_box)
+    if add_image_summaries:
+      tf.summary.image('image_with_bounding_boxes', image_with_box)
 
     distorted_image, distorted_bbox = distorted_bounding_box_crop(image, bbox)
     # Restore the shape since the dynamic slice based upon the bbox_size loses
@@ -200,8 +194,9 @@ def preprocess_for_train(image, height, width, bbox,
     distorted_image.set_shape([None, None, 3])
     image_with_distorted_box = tf.image.draw_bounding_boxes(
         tf.expand_dims(image, 0), distorted_bbox)
-    tf.image_summary('images_with_distorted_bounding_box',
-                     image_with_distorted_box)
+    if add_image_summaries:
+      tf.summary.image('images_with_distorted_bounding_box',
+                       image_with_distorted_box)
 
     # This resizing operation may distort the images because the aspect
     # ratio is not respected. We select a resize method in a round robin
@@ -212,43 +207,43 @@ def preprocess_for_train(image, height, width, bbox,
     num_resize_cases = 1 if fast_mode else 4
     distorted_image = apply_with_random_selector(
         distorted_image,
-        lambda x, method: tf.image.resize_images(x, [height, width], method=method),
+        lambda x, method: tf.image.resize_images(x, [height, width], method),
         num_cases=num_resize_cases)
 
-    tf.image_summary('cropped_resized_image',
-                     tf.expand_dims(distorted_image, 0))
+    if add_image_summaries:
+      tf.summary.image('cropped_resized_image',
+                       tf.expand_dims(distorted_image, 0))
 
     # Randomly flip the image horizontally.
     distorted_image = tf.image.random_flip_left_right(distorted_image)
 
-    # Randomly distort the colors. There are 4 ways to do it.
+    # Randomly distort the colors. There are 1 or 4 ways to do it.
+    num_distort_cases = 1 if fast_mode else 4
     distorted_image = apply_with_random_selector(
         distorted_image,
         lambda x, ordering: distort_color(x, ordering, fast_mode),
-        num_cases=4)
+        num_cases=num_distort_cases)
 
-    tf.image_summary('final_distorted_image',
-                     tf.expand_dims(distorted_image, 0))
-    distorted_image = tf.sub(distorted_image, 0.5)
-    distorted_image = tf.mul(distorted_image, 2.0)
+    if add_image_summaries:
+      tf.summary.image('final_distorted_image',
+                       tf.expand_dims(distorted_image, 0))
+    distorted_image = tf.subtract(distorted_image, 0.5)
+    distorted_image = tf.multiply(distorted_image, 2.0)
     return distorted_image
 
 
 def preprocess_for_eval(image, height, width,
                         central_fraction=0.875, scope=None):
   """Prepare one image for evaluation.
-
   If height and width are specified it would output an image with that size by
   applying resize_bilinear.
-
-  If central_fraction is specified it would cropt the central fraction of the
+  If central_fraction is specified it would crop the central fraction of the
   input image.
-
   Args:
     image: 3-D Tensor of image. If dtype is tf.float32 then the range should be
       [0, 1], otherwise it would converted to tf.float32 assuming that the range
       is [0, MAX], where MAX is largest positive representable number for
-      int(8/16/32) data type (see `tf.image.convert_image_dtype` for details)
+      int(8/16/32) data type (see `tf.image.convert_image_dtype` for details).
     height: integer
     width: integer
     central_fraction: Optional Float, fraction of the image to crop.
@@ -257,10 +252,20 @@ def preprocess_for_eval(image, height, width,
     3-D float Tensor of prepared image.
   """
   with tf.name_scope(scope, 'eval_image', [image, height, width]):
+      
+     
+    
+      
+      
     if image.dtype != tf.float32:
-      image = tf.image.convert_image_dtype(image, dtype=tf.float32)
+      tf.image.convert_image_dtype(image, dtype=tf.float32)
+      #image = image / tf.reduce_max(image)
+      print('yo')
     # Crop the central region of the image with an area containing 87.5% of
     # the original image.
+    
+    #image = image / tf.reduce_max(image)
+    
     if central_fraction:
       image = tf.image.central_crop(image, central_fraction=central_fraction)
 
@@ -270,19 +275,23 @@ def preprocess_for_eval(image, height, width,
       image = tf.image.resize_bilinear(image, [height, width],
                                        align_corners=False)
       image = tf.squeeze(image, [0])
-    image = tf.sub(image, 0.5)
-    image = tf.mul(image, 2.0)
+    image = tf.subtract(image, 0.5)
+    image = tf.multiply(image, 2.0)
     return image
 
 
 def preprocess_image(image, height, width,
                      is_training=False,
                      bbox=None,
-                     fast_mode=True):
+                     fast_mode=True,
+                     add_image_summaries=True):
   """Pre-process one image for training or evaluation.
-
   Args:
-    image: 3-D Tensor [height, width, channels] with the image.
+    image: 3-D Tensor [height, width, channels] with the image. If dtype is
+      tf.float32 then the range should be [0, 1], otherwise it would converted
+      to tf.float32 assuming that the range is [0, MAX], where MAX is largest
+      positive representable number for int(8/16/32) data type (see
+      `tf.image.convert_image_dtype` for details).
     height: integer, image expected height.
     width: integer, image expected width.
     is_training: Boolean. If true it would transform an image for train,
@@ -291,14 +300,19 @@ def preprocess_image(image, height, width,
       where each coordinate is [0, 1) and the coordinates are arranged as
       [ymin, xmin, ymax, xmax].
     fast_mode: Optional boolean, if True avoids slower transformations.
-
+    add_image_summaries: Enable image summaries.
   Returns:
     3-D float Tensor containing an appropriately scaled image
-
   Raises:
     ValueError: if user does not provide bounding box
   """
   if is_training:
-    return preprocess_for_train(image, height, width, bbox, fast_mode)
+    return preprocess_for_train(image, height, width, bbox, fast_mode,
+                                add_image_summaries=add_image_summaries)
   else:
-    return preprocess_for_eval(image, height, width)
+      return preprocess_for_eval(image, height, width)
+  
+def unprocess_image(image):
+    out = image + 1.0
+    out = out * 127.5
+    return out

@@ -30,7 +30,7 @@ def content_loss(endpoints_dict, content_layers):
     for layer in content_layers:
         generated_images, content_images = tf.split(endpoints_dict[layer], 2, 0)
         size = tf.size(generated_images)
-        content_loss += tf.nn.l2_loss(generated_images - content_images) * 2 / tf.to_float(size)  # remain the same as in the paper
+        content_loss += tf.nn.l2_loss(generated_images - content_images) * 2 / tf.to_float(size)  
     return content_loss
 
 

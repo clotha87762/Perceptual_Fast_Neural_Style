@@ -241,7 +241,10 @@ def load_pretrained_weight(name):
     
     to_exclude = loss_config.exclude_dict
     #print(name)
-    vars_to_restore = slim.get_variables_to_restore( include = [name] , exclude = to_exclude[name] )
+    if name in to_exclude:
+        vars_to_restore = slim.get_variables_to_restore( include = [name] , exclude = to_exclude[name] )
+    else:
+        vars_to_restore = slim.get_variables_to_restore( include = [name] )
     
     #print('---vars to restore---')
     #print(vars_to_restore)
